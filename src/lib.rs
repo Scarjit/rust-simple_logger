@@ -6,6 +6,9 @@ use chrono::Local;
 use colored::*;
 use log::{Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::Write;
+use std::sync::{Mutex, PoisonError, MutexGuard};
 
 pub struct SimpleLogger {
     /// The default logging level
@@ -16,6 +19,7 @@ pub struct SimpleLogger {
     /// After initialization, the vector is sorted so that the first (prefix) match
     /// directly gives us the desired log level.
     module_levels: Vec<(String, LevelFilter)>,
+    log_file: Option<Mutex<File>>
 }
 
 impl SimpleLogger {
@@ -37,9 +41,9 @@ impl SimpleLogger {
         SimpleLogger {
             default_level: LevelFilter::Trace,
             module_levels: Vec::new(),
+            log_file: None,
         }
     }
-
     /// A macro for simulating env_logger behavior, which enables the user to choose log level by
     /// setting a `RUST_LOG` environment variable. The `RUST_LOG` is not set or its value is not
     /// recognized as one of the log levels, this function with use the `Error` level by default.
@@ -80,6 +84,26 @@ impl SimpleLogger {
         self.default_level = level;
         self
     }
+
+    /// Set optional stdout redirection to file
+    ///
+    /// ```no_run
+    /// use simple_logger::SimpleLogger;
+    /// use std::fs::OpenOptions;
+    /// OpenOptions::new()
+    ///                 .truncate(true)
+    ///                 .read(true)
+    ///                 .create(true)
+    ///                 .write(true)
+    ///                 .open("logfile.log")
+    ///                 .unwrap();
+    /// log::warn!("This is an example message.");
+    /// ```
+    pub fn with_file_redirect(mut self, log_file: File) -> SimpleLogger{
+        self.log_file = Some(Mutex::new(log_file));
+        self
+    }
+
 
     /// Override the log level for some specific modules.
     ///
@@ -213,20 +237,32 @@ impl Log for SimpleLogger {
             } else {
                 record.module_path().unwrap_or_default()
             };
+
+            let log_string: String;
             #[cfg(feature = "chrono")]
-            {
-                println!(
-                    "{} {:<5} [{}] {}",
-                    Local::now().format("%Y-%m-%d %H:%M:%S,%3f"),
-                    level_string,
-                    target,
-                    record.args()
-                );
-            }
+                {
+                    log_string = format!(
+                        "{} {:<5} [{}] {}",
+                        Local::now().format("%Y-%m-%d %H:%M:%S,%3f"),
+                        level_string,
+                        target,
+                        record.args()
+                    );
+                }
             #[cfg(not(feature = "chrono"))]
-            {
-                println!("{:<5} [{}] {}", level_string, target, record.args());
+                {
+                    log_string = format!("{:<5} [{}] {}", level_string, target, record.args());
+                }
+
+            if let Some(file_mutex) = &self.log_file {
+                match file_mutex.lock(){
+                    Ok(mut log_file_guard) => {
+                        log_file_guard.write_all(log_string.as_bytes());
+                    }
+                    Err(_) => {}
+                }
             }
+
         }
     }
 
@@ -285,6 +321,30 @@ pub fn init_by_env() {
 #[cfg(test)]
 mod test {
     use super::*;
+    use log::trace;
+    use std::fs::OpenOptions;
+    use std::io::Read;
+
+    #[test]
+    fn test_log_to_file(){
+        let testfile = OpenOptions::new()
+            .truncate(true)
+            .read(true)
+            .create(true)
+            .write(true)
+            .open("test.log")
+            .unwrap();
+
+        let logger = SimpleLogger::new()
+            .with_file_redirect(testfile)
+            .with_level(LevelFilter::Trace)
+            .init();
+        trace!("TESTLOGSTRING");
+        let mut test_log_file = File::open("test.log").unwrap();
+        let mut test_log_content = String::new();
+        test_log_file.read_to_string(&mut test_log_content).unwrap();
+        assert!(test_log_content.contains("TESTLOGSTRING"));
+    }
 
     #[test]
     fn test_module_levels_allowlist() {
