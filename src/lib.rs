@@ -257,10 +257,12 @@ impl Log for SimpleLogger {
             if let Some(file_mutex) = &self.log_file {
                 match file_mutex.lock(){
                     Ok(mut log_file_guard) => {
-                        log_file_guard.write_all(log_string.as_bytes());
+                        log_file_guard.write_all(format!("{}\n",log_string).as_bytes());
                     }
                     Err(_) => {}
                 }
+            }else{
+                println!("{}", log_string);
             }
 
         }
