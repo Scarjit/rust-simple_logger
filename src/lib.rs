@@ -178,6 +178,7 @@ impl SimpleLogger {
         /* Sort all module levels from most specific to least specific. The length of the module
          * name is used instead of its actual depth to avoid module name parsing.
          */
+
         self.module_levels
             .sort_by_key(|(name, _level)| name.len().wrapping_neg());
         let max_level = self
@@ -191,6 +192,11 @@ impl SimpleLogger {
             .unwrap_or(self.default_level);
         log::set_max_level(max_level);
         log::set_boxed_logger(Box::new(self))?;
+
+        if self.log_stdout == false && self.log_file.is_none() {
+            log::warn!("stdout and log file are both disabled !");
+        }
+
         Ok(())
     }
 }
