@@ -19,7 +19,8 @@ pub struct SimpleLogger {
     /// After initialization, the vector is sorted so that the first (prefix) match
     /// directly gives us the desired log level.
     module_levels: Vec<(String, LevelFilter)>,
-    log_file: Option<Mutex<File>>
+    log_file: Option<Mutex<File>>,
+    log_stdout: bool,
 }
 
 impl SimpleLogger {
@@ -42,6 +43,7 @@ impl SimpleLogger {
             default_level: LevelFilter::Trace,
             module_levels: Vec::new(),
             log_file: None,
+            log_stdout: true
         }
     }
     /// A macro for simulating env_logger behavior, which enables the user to choose log level by
@@ -261,7 +263,8 @@ impl Log for SimpleLogger {
                     }
                     Err(_) => {}
                 }
-            }else{
+            }
+            if self.log_stdout{
                 println!("{}", log_string);
             }
 
