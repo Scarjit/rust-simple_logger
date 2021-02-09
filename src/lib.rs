@@ -267,7 +267,9 @@ impl Log for SimpleLogger {
                     Ok(mut log_file_guard) => {
                         log_file_guard.write_all(format!("{}\n",log_string).as_bytes());
                     }
-                    Err(_) => {}
+                    Err(e) => {
+                        eprintln!("Failed to acquire lock.\n{}", e);
+                    }
                 }
             }
             if self.log_stdout{
