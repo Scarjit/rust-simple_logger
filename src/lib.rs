@@ -105,7 +105,12 @@ impl SimpleLogger {
         self.log_file = Some(Mutex::new(log_file));
         self
     }
-
+    /// En/Disables logging to stdout
+    /// This is only allowed to be disabled, if file logging is activated
+    pub fn with_stdout(mut self, enable_stdout: bool) -> SimpleLogger{
+        self.log_stdout = enable_stdout;
+        self
+    }
 
     /// Override the log level for some specific modules.
     ///
